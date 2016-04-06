@@ -61,21 +61,19 @@ int getcharGPS(void){
 }
 
 //puts together longitude, latitude and appropriate directions to return coordinates string
-char *one_string(double longitude, double latitude, char N_S[], char E_W[]){
-	char *str = malloc(100);
+void one_string(double longitude, double latitude, char N_S[], char E_W[], char retString[]){
 	char lng[10];
     //copy longitude to string
 	sprintf(lng, "%f", longitude);
-	strcpy(str, lng);
+	strcpy(retString, lng);
     //add longitude direction to string
-	strcat(str, N_S);
+	strcat(retString, N_S);
     //add latitude direction to string
 	sprintf(lng, "%f", latitude);
-	strcat(str, lng);
+	strcat(retString, lng);
     //add latitude direction to string
-	strcat(str, E_W);
-	printf("%s \n", str);
-	return str;
+	strcat(retString, E_W);
+	printf("%s \n", retString);
 }
 //convert string with gps latitude to decimal degree latitude.
 //returns decimal degree latitude
@@ -408,7 +406,7 @@ char *get_location(void){
 			latitude = printlat(lat);
 			longitude = printlong(lng);
             //prepare the coordinates in one strin
-			location = one_string(longitude, latitude,N_S, E_W);
+			one_string(longitude, latitude,N_S, E_W, location);
             //get time
 			time_seconds = to_seconds(time);
 			//every time the location is gotten, the time, distance, calories and speed is recalculated
@@ -442,7 +440,7 @@ char *get_location(void){
 //get the coordinates
 //unlike get_location does not update time, speed etc...
 //meant to be used only in the fitness application
-char *get_coor(void){
+void get_coor(char *retString){
 	char *message;
 	int i;
 	int place = 0;
@@ -453,7 +451,6 @@ char *get_coor(void){
 	char N_S[1000];
 	char lng[1000];
 	char E_W[1000];
-	char *location;
 
 	while(1){
 		place = 0;
@@ -561,13 +558,12 @@ char *get_coor(void){
 			latitude = printlat(lat);
 			longitude = printlong(lng);
             //add the coordinated together in one string
-			location = one_string(longitude, latitude,E_W, N_S);
-			printf("the location is %s \n", location);
+			one_string(longitude, latitude,E_W, N_S, retString);
+			printf("the location is %s \n", retString);
 			break;
 		}
 	}
 	printf("finished");
-	return location;
 }
 /*
  * puts total time into a string

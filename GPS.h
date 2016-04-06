@@ -19,7 +19,7 @@ char *get_total_time(void);
 char *get_total_distance(void);
 char *get_string_speed(void);
 void stop_gps(void);
-char *get_coor(void);
+void get_coor(char *);
 char * get_calories(void);
 
 #endif

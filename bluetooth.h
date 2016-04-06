@@ -9,11 +9,12 @@
 
 
 void initBlue(void);
+void pairDevice(void);
 int BlueTestReceiveData(void);
 int getcharBlue(void);
 int putcharBlue(int c);
 void sendMessage(char *message);
-int sendMessageWithAck(char *message);
+int sendMessageWithAck(char *message, char *indicator, char ack);
 int getMessage(char *retString);
 
 

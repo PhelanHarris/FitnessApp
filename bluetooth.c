@@ -67,27 +67,30 @@ void sendMessage(char *message) {
 	for (i = 0; i < strlen(message); i++) {
 			putcharBlue(message[i]);
 	}
+	putcharBlue('\r');
 }
 
 
-int sendMessageWithAck(char *message) {
+int sendMessageWithAck(char *message, char *indicator, char ack) {
 	// send '^' character to indicate we want to send a message
-	sendMessage("^^^^^");
+	sendMessage(indicator);
 
 	// wait for acknowledgement from Android device
 	char retString[8] = "";
 	int initialTime = clock();
 	int currentTime = initialTime;
-	while(strcmp(retString, "&ACK") != 0 && currentTime < initialTime + BLUETOOTH_TIMEOUT){
+	while(retString[0] != ack && currentTime < initialTime + BLUETOOTH_TIMEOUT){
 		getMessage(retString);
 		currentTime = clock();
 	}
 
 	// If ack received, send message
-	if (strcmp(retString, "&ACK") == 0){
-		sendMessage(message);
-		// substring to indicate end of message
-		sendMessage("&END");
+	if (retString[0] == ack){
+		// pad the message so the first/last characters aren't lost
+		char paddedMessage[110] = "]]]]]";
+		strcat(paddedMessage, message);
+		strcat(paddedMessage, "^^^^^");
+		sendMessage(paddedMessage);
 		printf("Finished sending process using ACK.\n");
 		return TRUE;
 	}
@@ -121,6 +124,10 @@ int getcharBlueTimeout(void) {
 void initBlue(void) {
 	Blue_Control = 0x15;
 	Blue_Baud = 0x01;
+	pairDevice();
+}
+
+void pairDevice(){
 	char retString[8] = "";
 	while(TRUE){
 		while(!BlueTestReceiveData()){}
