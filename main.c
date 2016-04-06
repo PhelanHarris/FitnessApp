@@ -23,6 +23,7 @@ int backButtonState = UNPRESSED, newMessageButtonState = UNPRESSED;
 int lastBackButtonState = -1, lastNewMessageButtonState = -1;
 char messageLines[100][50];
 int numMessageLines = 0;
+int firstMessage = 0;
 int topMessageLine = 0;
 int scrollingUpdated = FALSE;
 int numNewMessages = 0;
@@ -69,6 +70,7 @@ int main() {
 	char retString[100];
 	strcpy(messageLines[0], "1Test message");
 	numMessageLines = 1;
+	char *data = malloc(100);
 
 	while(1){
 		currentTime = clock();
@@ -81,7 +83,8 @@ int main() {
 
 		// always listen for bluetooth data, regardless of current screen
 		if (BlueTestReceiveData()){
-			char data[100];
+			char *curData = data;
+			char *end;
 			printf("Got bluetooth data.\n");
 			if (!getMessage(data)){
 				printf("False positive for data.\n");
@@ -91,16 +94,35 @@ int main() {
 				if (data[0] == '@'){
 					// send acknowledge that we are ready to receive message
 					sendMessage(";;;;;");
-					// receive message
+					// wait to receive message
 					while(!BlueTestReceiveData()){}
-					getMessage(data);
+					// loop until we get a message, sending X's to indicate missing message
+					while (!getMessage(data) || strstr(data, "]") == NULL || strstr(data, "^") == NULL){
+						sendMessage("XXXXX");
+					}
+					curData = strrchr(data, ']');
+					curData += 1;
+					end = strchr(curData, '^');
+					end[0] = '\0';
+
+					while(strlen(curData) > 30){
+						strcpy(messageLines[numMessageLines], "1");
+						strcat(messageLines[numMessageLines], curData);
+						messageLines[numMessageLines][31] = '\0';
+						curData = curData + 30;
+						numMessageLines++;
+					}
 					strcpy(messageLines[numMessageLines], "1");
-					strcat(messageLines[numMessageLines], data);
+					strcat(messageLines[numMessageLines], curData);
 					numMessageLines++;
 					numNewMessages++;
 					// update the messaging screen
 					scrollingUpdated = TRUE;
 					topMessageLine = numMessageLines - 10;
+					lastElementState[2] = -1;
+				}
+				else{
+					sendMessage("XXXXX");
 				}
 			}
 		}
@@ -210,7 +232,8 @@ void buttonReleasedMain(){
 			lastElementState[0] = -1;
 			break;
 		case 1:
-			// TODO pair bluetooth device
+			if (elementState[3])
+			elementState[1] = UNPRESSED;
 			break;
 		case 2:
 			inMessenger = TRUE;
@@ -244,8 +267,17 @@ void buttonReleasedMessenger(){
 			displayKeyboard("Message: ", retString);
 			if (strlen(retString) > 0){
 				sendMessageWithAck(retString, "#####", ')');
+				char *curRetString = retString;
+				while (strlen(curRetString) >= 30){
+					strcpy(messageLines[numMessageLines], "0");
+					strcat(messageLines[numMessageLines], curRetString);
+					messageLines[numMessageLines][31] = '\0';
+					printf("message line %d: %s\n", numMessageLines, messageLines[numMessageLines]);
+					curRetString += 30;
+					numMessageLines++;
+				}
 				strcpy(messageLines[numMessageLines], "0");
-				strcat(messageLines[numMessageLines], retString);
+				strcat(messageLines[numMessageLines], curRetString);
 				printf("message line %d: %s\n", numMessageLines, messageLines[numMessageLines]);
 				numMessageLines++;
 				numNewMessages++;
@@ -332,6 +364,12 @@ void refreshScreenMain(){
 			WriteARectangle(x1[2], x2[2], y1[2], y2[2], WHITE);
 			WriteARectangle(x1[2]+10, x2[2]-10, y1[2]+10, y2[2]-10, BLACK);
 			drawString("Messages", (x1[2]+x2[2])/2, (y1[2]+y2[2])/2, WHITE, BLACK, FALSE, 0, CONSOLAS_24PT, CENTER, CENTER);
+		}
+		if (numNewMessages > 0){
+			DrawAFilledCircle(734, 325, 15, RED);
+			char newMessagesString[10];
+			sprintf(newMessagesString, "%d", numNewMessages);
+			drawString(newMessagesString, 735, 325, WHITE, RED, FALSE, 0, CONSOLAS_16PT, CENTER, CENTER);
 		}
 		lastElementState[2] = elementState[2];
 	}

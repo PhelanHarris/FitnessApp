@@ -51,6 +51,7 @@ int getMessage(char *retString) {
 		if (cur == -1) {
 			return FALSE;
 		} else if (cur == '\r') {
+			cur = getcharBlueTimeout();
 			break;
 		} else {
 			retString[i] = cur;
