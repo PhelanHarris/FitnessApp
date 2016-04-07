@@ -1,6 +1,8 @@
 #ifndef KEYBOARD_H_
 #define KEYBOARD_H_
 
+#include "touch_screen.h"
+
 #define KEY_HEIGHT 96
 #define KEY_WIDTH 80
 #define PADDING 5
@@ -33,6 +35,11 @@ enum {
 
 
 void displayKeyboard(char* field, char* retString);
+void initKeyboard(char *retString);
+void screenTouchedKeyboard(TouchEvent event, int *buttonPressed, int *lastButtonPressed);
+int buttonReleasedKeyboard(char *retString, int *buttonPressed, int *lastButtonPressed);
+void refreshScreenKeyboard(int currentTime);
+
 
 
 

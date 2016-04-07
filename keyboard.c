@@ -16,6 +16,8 @@ int shifted;
 int symbolMode;
 int cursorLoc;
 int cursorRow;
+int cursorOn;
+
 
 // function to display a fullscreen keyboard and return the string the user typed
 void displayKeyboard(char* field, char* retString){
@@ -38,7 +40,7 @@ void displayKeyboard(char* field, char* retString){
 	TouchEvent event;
 	int buttonPressed = -1;
 	int lastButtonPressed = -1;
-	int cursorOn = TRUE;
+	cursorOn = TRUE;
 	// loop for touch input
 	while (TRUE){
 		currentTime = clock();
@@ -160,6 +162,131 @@ void displayKeyboard(char* field, char* retString){
 
 	printf("returning string: %s\n", retString);
 }
+
+void initKeyboard(char *retString){
+	char field[10] = "Message: ";
+	shifted = FALSE;
+	symbolMode = FALSE;
+	retString[0] = '\0';
+
+	// draw the keyboard
+	ClearScreen();
+	drawString(field, PADDING, KEY_HEIGHT/4, WHITE, BLACK, FALSE, 0, CONSOLAS_16PT, TOP, LEFT);
+	drawString(retString, PADDING + fontWidths[CONSOLAS_16PT]*strlen(field), KEY_HEIGHT/4, WHITE, BLACK, FALSE, 0, CONSOLAS_16PT, TOP, LEFT);
+	drawKeyboard();
+	cursorRow = 0;
+	cursorLoc = PADDING + fontWidths[CONSOLAS_16PT]*(strlen(field)+strlen(retString));
+}
+
+void screenTouchedKeyboard(TouchEvent event, int *buttonPressed, int *lastButtonPressed){
+	int row = (event.y / KEY_HEIGHT) - 1;
+	int column = (event.x / (KEY_WIDTH/2));
+	if (row < 0 || row > 3 || column < 0 || column > 19){
+		row = 1;
+		column = 0;
+	}
+	*buttonPressed = buttons[row][column];
+	// if the user is touching a new button
+	if (*buttonPressed != *lastButtonPressed){
+	// draw the new button highlighted, and the old button unhighlighted
+		drawKey(*buttonPressed, TRUE);
+		drawKey(*lastButtonPressed, FALSE);
+		*lastButtonPressed = *buttonPressed;
+	}
+}
+
+int buttonReleasedKeyboard(char *retString, int *buttonPressed, int *lastButtonPressed){
+	*lastButtonPressed = -1;
+	char field[10] = "Message: ";
+	if (*buttonPressed < 0){}
+	// if a letter has been pressed
+	else if (*buttonPressed < 26){
+		// draw the key unhighlighted
+		drawKey(*buttonPressed, FALSE);
+		if (cursorLoc + fontWidths[CONSOLAS_16PT] <= XRES || cursorRow == 0){
+			// figure out which key it is and add the character to the return string
+			if (symbolMode){
+				strcat(retString, symbols[*buttonPressed]);
+			}
+			else if (shifted){
+				strcat(retString, shiftKeys[*buttonPressed]);
+				shifted = FALSE;
+				drawKeyboard();
+			}
+			else{
+				strcat(retString, keys[*buttonPressed]);
+			}
+			// erase the cursor, draw the character, and draw the cursor at the new location
+			blinkCursor(FALSE);
+			if (cursorLoc + fontWidths[CONSOLAS_16PT] >= XRES && cursorRow == 0){
+				cursorRow = 1;
+				cursorLoc = PADDING;
+			}
+			drawChar(cursorLoc, KEY_HEIGHT/4 + cursorRow*KEY_HEIGHT/3, WHITE, BLACK, (int)retString[strlen(retString)-1], FALSE, CONSOLAS_16PT);
+			cursorLoc += fontWidths[CONSOLAS_16PT];
+			blinkCursor(TRUE);
+			printf("String: %s\n", retString);
+		}
+	} // shift key
+	else if (*buttonPressed == 26){
+		shifted = !shifted;
+		drawKeyboard();
+	} // delete key
+	else if (*buttonPressed == 27){
+		drawKey(*buttonPressed, FALSE);
+
+		if (strlen(retString) > 0){
+			blinkCursor(FALSE);
+			WriteARectangle(cursorLoc-fontWidths[CONSOLAS_16PT], cursorLoc, KEY_HEIGHT/4 + cursorRow*KEY_HEIGHT/3, KEY_HEIGHT/4 + (cursorRow+1)*KEY_HEIGHT/3, BLACK);
+			if (cursorLoc - fontWidths[CONSOLAS_16PT] <= PADDING){
+				cursorRow = 0;
+				cursorLoc = PADDING + fontWidths[CONSOLAS_16PT]*(strlen(field) + strlen(retString));
+			}
+			retString[strlen(retString)-1] = '\0';
+			cursorLoc -= fontWidths[CONSOLAS_16PT];
+
+			blinkCursor(TRUE);
+		}
+	} // symbol key
+	else if (*buttonPressed == 28){
+		symbolMode = !symbolMode;
+		drawKeyboard();
+	} // space bar
+	else if (*buttonPressed == 29){
+		drawKey(*buttonPressed, FALSE);
+		if (cursorLoc + fontWidths[CONSOLAS_16PT] <= XRES || cursorRow == 0){
+			blinkCursor(FALSE);
+			if (cursorLoc + fontWidths[CONSOLAS_16PT] >= XRES && cursorRow == 0){
+				cursorRow = 1;
+				cursorLoc = PADDING;
+			}
+			strcat(retString, " ");
+			cursorLoc += fontWidths[CONSOLAS_16PT];
+			blinkCursor(TRUE);
+			if (symbolMode){
+				symbolMode = FALSE;
+				drawKeyboard();
+			}
+		}
+	} // return key
+	else if (*buttonPressed == 30){
+		return TRUE;
+	}
+	return FALSE;
+}
+
+void refreshScreenKeyboard(int currentTime){
+	// blink the cursor on and off
+	if (currentTime % 1000 > 500 && !cursorOn){
+		blinkCursor(TRUE);
+		cursorOn = TRUE;
+	}
+	else if (currentTime % 1000 < 500 && cursorOn){
+		blinkCursor(FALSE);
+		cursorOn = FALSE;
+	}
+}
+
 
 // draw a key given its ID, (highlighted or not)
 void drawKey (int keyID, int pressed){

@@ -28,9 +28,11 @@ int topMessageLine = 0;
 int scrollingUpdated = FALSE;
 int numNewMessages = 0;
 int inMessenger = FALSE;
+int inKeyboard = FALSE;
 char curLocation[50];
 int upScrollButtonState = UNPRESSED, downScrollButtonState = UNPRESSED;
 int lastUpScrollButtonState = -1, lastDownScrollButtonState = -1;
+char keyboardRetString[100];
 
 const int x1[3] = {40, 40, 420};
 const int x2[3] = {760, 390, 760};
@@ -56,7 +58,7 @@ int main() {
 	initGPS();
 	drawString("OK", 780, 120, GREEN, BLACK, FALSE, 0, CONSOLAS_16PT, CENTER, RIGHT);
 	drawString("Establishing bluetooth connection...", 20, 160, WHITE, BLACK, FALSE, 0, CONSOLAS_16PT, CENTER, LEFT);
-	initBlue();
+	//initBlue();
 	drawString("OK", 780, 160, GREEN, BLACK, FALSE, 0, CONSOLAS_16PT, CENTER, RIGHT);
 	ClearScreen();
 
@@ -137,8 +139,10 @@ int main() {
 				// depending on which screen we are on, call appropriate function
 				if (!inMessenger)
 					screenTouchedMain(event);
-				else
+				else if (!inKeyboard)
 					screenTouchedMessenger(event);
+				else
+					screenTouchedKeyboard(event, &buttonPressed, &lastButtonPressed);
 			}
 		}
 		// if it has been at least 50 ms since the last touch event,
@@ -148,14 +152,47 @@ int main() {
 			// depending on which screen we are on, call the appropriate function
 			if (!inMessenger)
 				buttonReleasedMain();
-			else
+			else if (!inKeyboard)
 				buttonReleasedMessenger();
+			else {
+				if (buttonReleasedKeyboard(keyboardRetString, &buttonPressed, &lastButtonPressed)){
+					// return key was pressed.
+					if (strlen(keyboardRetString) > 0){
+						sendMessageWithAck(keyboardRetString, "#####", ')');
+						char *curRetString = keyboardRetString;
+						while (strlen(curRetString) >= 30){
+							strcpy(messageLines[numMessageLines], "0");
+							strcat(messageLines[numMessageLines], curRetString);
+							messageLines[numMessageLines][31] = '\0';
+							printf("message line %d: %s\n", numMessageLines, messageLines[numMessageLines]);
+							curRetString += 30;
+							numMessageLines++;
+						}
+						strcpy(messageLines[numMessageLines], "0");
+						strcat(messageLines[numMessageLines], curRetString);
+						printf("message line %d: %s\n", numMessageLines, messageLines[numMessageLines]);
+						numMessageLines++;
+						numNewMessages++;
+					}
+					newMessageButtonState = UNPRESSED;
+					lastBackButtonState = -1;
+					lastNewMessageButtonState = -1;
+					lastUpScrollButtonState = -1;
+					lastDownScrollButtonState = -1;
+					inKeyboard = FALSE;
+					scrollingUpdated = TRUE;
+					topMessageLine = numMessageLines - 10;
+					ClearScreen();
+				}
+			}
 		}
 		// refresh the screen (depending on which we are on)
 		if (!inMessenger)
 			refreshScreenMain();
-		else
+		else if (!inKeyboard)
 			refreshScreenMessenger();
+		else
+			refreshScreenKeyboard(currentTime);
 	}
 	return 0;
 }
@@ -263,33 +300,8 @@ void buttonReleasedMessenger(){
 			backButtonState = UNPRESSED;
 			break;
 		case 1:
-			retString[0] = '\0';
-			displayKeyboard("Message: ", retString);
-			if (strlen(retString) > 0){
-				sendMessageWithAck(retString, "#####", ')');
-				char *curRetString = retString;
-				while (strlen(curRetString) >= 30){
-					strcpy(messageLines[numMessageLines], "0");
-					strcat(messageLines[numMessageLines], curRetString);
-					messageLines[numMessageLines][31] = '\0';
-					printf("message line %d: %s\n", numMessageLines, messageLines[numMessageLines]);
-					curRetString += 30;
-					numMessageLines++;
-				}
-				strcpy(messageLines[numMessageLines], "0");
-				strcat(messageLines[numMessageLines], curRetString);
-				printf("message line %d: %s\n", numMessageLines, messageLines[numMessageLines]);
-				numMessageLines++;
-				numNewMessages++;
-			}
-			newMessageButtonState = UNPRESSED;
-			lastBackButtonState = -1;
-			lastNewMessageButtonState = -1;
-			lastUpScrollButtonState = -1;
-			lastDownScrollButtonState = -1;
-			scrollingUpdated = TRUE;
-			topMessageLine = numMessageLines - 10;
-			ClearScreen();
+			inKeyboard = TRUE;
+			initKeyboard(keyboardRetString);
 			break;
 		case 2:
 			if (topMessageLine > 0){
