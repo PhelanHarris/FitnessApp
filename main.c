@@ -30,6 +30,7 @@ int numNewMessages = 0;
 int inMessenger = FALSE;
 int inKeyboard = FALSE;
 char curLocation[50];
+char pairedDevice[20];
 int upScrollButtonState = UNPRESSED, downScrollButtonState = UNPRESSED;
 int lastUpScrollButtonState = -1, lastDownScrollButtonState = -1;
 char keyboardRetString[100];
@@ -58,7 +59,7 @@ int main() {
 	initGPS();
 	drawString("OK", 780, 120, GREEN, BLACK, FALSE, 0, CONSOLAS_16PT, CENTER, RIGHT);
 	drawString("Establishing bluetooth connection...", 20, 160, WHITE, BLACK, FALSE, 0, CONSOLAS_16PT, CENTER, LEFT);
-	//initBlue();
+	initBlue();
 	drawString("OK", 780, 160, GREEN, BLACK, FALSE, 0, CONSOLAS_16PT, CENTER, RIGHT);
 	ClearScreen();
 
@@ -99,32 +100,33 @@ int main() {
 					// wait to receive message
 					while(!BlueTestReceiveData()){}
 					// loop until we get a message, sending X's to indicate missing message
-					while (!getMessage(data) || strstr(data, "]") == NULL || strstr(data, "^") == NULL){
-						sendMessage("XXXXX");
+					int gotMessage = getMessage(data);
+					if (!gotMessage || strstr(data, "]") == NULL || strstr(data, "^") == NULL){
+						sendMessage("%%%%%");
 					}
-					curData = strrchr(data, ']');
-					curData += 1;
-					end = strchr(curData, '^');
-					end[0] = '\0';
+					else {
+						curData = strrchr(data, ']');
+						curData += 1;
+						end = strchr(curData, '^');
+						end[0] = '\0';
 
-					while(strlen(curData) > 30){
+						while(strlen(curData) > 30){
+							strcpy(messageLines[numMessageLines], "1");
+							strcat(messageLines[numMessageLines], curData);
+							messageLines[numMessageLines][31] = '\0';
+							curData = curData + 30;
+							numMessageLines++;
+						}
 						strcpy(messageLines[numMessageLines], "1");
 						strcat(messageLines[numMessageLines], curData);
-						messageLines[numMessageLines][31] = '\0';
-						curData = curData + 30;
 						numMessageLines++;
+						numNewMessages++;
+						// update the messaging screen
+						scrollingUpdated = TRUE;
+						topMessageLine = numMessageLines - 10;
+						lastElementState[2] = -1;
+						sendMessage("}}}}}");
 					}
-					strcpy(messageLines[numMessageLines], "1");
-					strcat(messageLines[numMessageLines], curData);
-					numMessageLines++;
-					numNewMessages++;
-					// update the messaging screen
-					scrollingUpdated = TRUE;
-					topMessageLine = numMessageLines - 10;
-					lastElementState[2] = -1;
-				}
-				else{
-					sendMessage("XXXXX");
 				}
 			}
 		}

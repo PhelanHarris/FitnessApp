@@ -14,6 +14,7 @@ typedef enum {
 
 #define TOUCH_TIMEOUT 50
 #define BLUETOOTH_TIMEOUT 500
+#define MESSAGE_RECEIVE_TIMEOUT 2000
 
 // Touche events
 #define EVENT_PRESS 0
