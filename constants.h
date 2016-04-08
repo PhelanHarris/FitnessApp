@@ -10,7 +10,10 @@ typedef enum {
 	NOT_ACCEPTING
 } StringState;
 
-#define DEVICE_NAME "Testname"
+#define FALSE 0
+#define TRUE 1
+
+#define DEVICE_NAME "Phelan"
 
 #define UNPRESSED 0
 #define PRESSED 1
@@ -18,14 +21,16 @@ typedef enum {
 #define TOUCH_TIMEOUT 50
 #define BLUETOOTH_TIMEOUT 500
 #define MESSAGE_RECEIVE_TIMEOUT 2000
+#define DISTANCE_TIME_INTERVAL 10000
 
-// Touche events
+#define FAKE_COORDS TRUE
+
+// Touch events
 #define EVENT_PRESS 0
 #define EVENT_RELEASE 1
 #define EVENT_UNKNOWN 2
 
-#define FALSE 0
-#define TRUE 1
+
 
 // Possible text orientations
 typedef enum {

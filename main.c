@@ -29,13 +29,15 @@ int scrollingUpdated = FALSE;
 int numNewMessages = 0;
 int inMessenger = FALSE;
 int inKeyboard = FALSE;
-char curLocation[50];
+char curLocation[50] = "123.116226W49.246N";
 char pairedDevice[20];
 int upScrollButtonState = UNPRESSED, downScrollButtonState = UNPRESSED;
 int lastUpScrollButtonState = -1, lastDownScrollButtonState = -1;
 char keyboardRetString[100];
 int connected = FALSE;
 int acceptingBT = TRUE;
+char distanceAway[20] = "";
+char timeAway[20] = "";
 
 const int x1[3] = {40, 40, 420};
 const int x2[3] = {760, 390, 760};
@@ -53,16 +55,22 @@ int main() {
 	ClearScreen();
 	drawString("Initializing SD card...", 20, 40, WHITE, BLACK, FALSE, 0, CONSOLAS_16PT, CENTER, LEFT);
 	initSD();
+	usleep(500000);
 	drawString("OK", 780, 40, GREEN, BLACK, FALSE, 0, CONSOLAS_16PT, CENTER, RIGHT);
 	drawString("Initializing touch screen...", 20, 80, WHITE, BLACK, FALSE, 0, CONSOLAS_16PT, CENTER, LEFT);
 	initTouch();
+	usleep(500000);
 	drawString("OK", 780, 80, GREEN, BLACK, FALSE, 0, CONSOLAS_16PT, CENTER, RIGHT);
 	drawString("Initializing GPS...", 20, 120, WHITE, BLACK, FALSE, 0, CONSOLAS_16PT, CENTER, LEFT);
 	initGPS();
+	usleep(500000);
 	drawString("OK", 780, 120, GREEN, BLACK, FALSE, 0, CONSOLAS_16PT, CENTER, RIGHT);
 	drawString("Establishing bluetooth connection...", 20, 160, WHITE, BLACK, FALSE, 0, CONSOLAS_16PT, CENTER, LEFT);
 	initBlue();
+	usleep(500000);
 	drawString("OK", 780, 160, GREEN, BLACK, FALSE, 0, CONSOLAS_16PT, CENTER, RIGHT);
+	drawString("Done!", 20, 200, WHITE, BLACK, FALSE, 0, CONSOLAS_16PT, CENTER, LEFT);
+	usleep(500000);
 	ClearScreen();
 
 	refreshScreenMain();
@@ -72,9 +80,9 @@ int main() {
 	buttonPressed = -1;
 	int lastScreenTouchTime = INT_MAX - TOUCH_TIMEOUT;
 	TouchEvent event;
-	strcpy(messageLines[0], "1Test message");
-	numMessageLines = 1;
+	numMessageLines = 0;
 	char *data = malloc(100);
+	int lastDistanceTime = 0;
 
 	while(1){
 		currentTime = clock();
@@ -84,6 +92,12 @@ int main() {
 			flash = TRUE;
 		else
 			flash = FALSE;
+
+		// periodically ask for the distance over bluetooth
+		if (connected && elementState[3] == HELP_COMING && lastDistanceTime + DISTANCE_TIME_INTERVAL < currentTime){
+			sendMessage("");
+			lastDistanceTime = currentTime;
+		}
 
 		// always listen for bluetooth data, regardless of current screen
 		if (acceptingBT && BlueTestReceiveData()){
@@ -111,6 +125,12 @@ int main() {
 						end = strchr(curData, '^');
 						end[0] = '\0';
 
+						if (numMessageLines == 0 || messageLines[numMessageLines-1][0] != '1'){
+							strcpy(messageLines[numMessageLines], "1");
+							strcat(messageLines[numMessageLines], pairedDevice);
+							strcat(messageLines[numMessageLines], ":");
+							numMessageLines++;
+						}
 						while(strlen(curData) > 30){
 							strcpy(messageLines[numMessageLines], "1");
 							strcat(messageLines[numMessageLines], curData);
@@ -128,12 +148,15 @@ int main() {
 						lastElementState[2] = -1;
 						sendMessage("}}}}}");
 					}
-				}
+				} // '=' indicates help is on the way
+				else if (connected && elementState[3] == ALARM_SOUNDED && data[0] == '='){
+					elementState[3] = HELP_COMING;
+				} // '+' indicates disconnect requested
 				else if (connected && data[0] == '+'){
 					connected = FALSE;
 					sendMessage("-----");
 					printf("Disconnected!\n");
-				}
+				} // '?' indicates connection requested
 				else if (!connected && data[0] == '?'){
 					strcpy(data, "]]]]]");
 					strcat(data, DEVICE_NAME);
@@ -187,6 +210,13 @@ int main() {
 					// return key was pressed.
 					if (strlen(keyboardRetString) > 0){
 						sendMessageWithAck(keyboardRetString, "#####", ')');
+						if (numMessageLines == 0 || messageLines[numMessageLines-1][0] != '0'){
+							strcpy(messageLines[numMessageLines], "0");
+							strcat(messageLines[numMessageLines], DEVICE_NAME);
+							strcat(messageLines[numMessageLines], ":");
+							printf("message line %d: %s\n", numMessageLines, messageLines[numMessageLines]);
+							numMessageLines++;
+						}
 						char *curRetString = keyboardRetString;
 						while (strlen(curRetString) >= 30){
 							strcpy(messageLines[numMessageLines], "0");
@@ -248,7 +278,7 @@ void screenTouchedMain(TouchEvent event){
 
 void screenTouchedMessenger(TouchEvent event){
 	// back button
-	if (event.x < 80 && event.y < 60){
+	if (event.x < 80 && event.y < 80){
 		buttonPressed = 0;
 		backButtonState = PRESSED;
 	} // new message button
@@ -284,40 +314,55 @@ void screenTouchedMessenger(TouchEvent event){
 void buttonReleasedMain(){
 	switch(buttonPressed) {
 		case 0:
-			if (elementState[3] == ALARM_SOUNDED || elementState[3] == HELP_COMING){
-				//sendMessageWithAck()
-				elementState[3] = CONNECTED;
-			}
-			else {
-				get_coor(curLocation);
-				sendMessageWithAck(curLocation, "!!!!!", '~');
-				elementState[3] = ALARM_SOUNDED;
+			if (connected){
+				if (elementState[3] == ALARM_SOUNDED || elementState[3] == HELP_COMING){
+					sendMessage("<<<<<");
+					while(waitForBTData(1000)){
+						char data[40];
+						int gotMessage = getMessage(data);
+						if (gotMessage && data[0] == '>'){
+							elementState[3] = CONNECTED;
+							break;
+						}
+					}
+				}
+				else {
+					if (!FAKE_COORDS){
+						get_coor(curLocation);
+					}
+					sendMessageWithAck(curLocation, "!!!!!", '~');
+					elementState[3] = ALARM_SOUNDED;
+				}
 			}
 			elementState[0] = UNPRESSED;
 			lastElementState[0] = -1;
 			break;
 		case 1:
-			if (connected){
-				//disconnect
-			}
-			else{
-				acceptingBT = !acceptingBT;
-			}
+			calibrateScreen();
+			ClearScreen();
+			lastElementState[0] = -1;
 			lastElementState[1] = -1;
+			lastElementState[2] = -1;
+			lastElementState[3] = -1;
 			break;
 		case 2:
-			inMessenger = TRUE;
-			lastBackButtonState = -1;
-			lastNewMessageButtonState = -1;
-			lastUpScrollButtonState = -1;
-			lastDownScrollButtonState = -1;
-			scrollingUpdated = TRUE;
-			topMessageLine = numMessageLines - 10;
-			ClearScreen();
+			if (connected){
+				inMessenger = TRUE;
+				lastBackButtonState = -1;
+				lastNewMessageButtonState = -1;
+				lastUpScrollButtonState = -1;
+				lastDownScrollButtonState = -1;
+				scrollingUpdated = TRUE;
+				topMessageLine = numMessageLines - 10;
+				ClearScreen();
+			}
+			elementState[2] = UNPRESSED;
 			break;
 	}
 	if (buttonPressed >= 0 && buttonPressed <= 2)
 		elementState[buttonPressed] = UNPRESSED;
+
+	lastButtonPressed = -1;
 }
 
 void buttonReleasedMessenger(){
@@ -350,6 +395,7 @@ void buttonReleasedMessenger(){
 			downScrollButtonState = UNPRESSED;
 			break;
 	}
+	lastButtonPressed = -1;
 }
 
 void refreshScreenMain(){
@@ -363,82 +409,58 @@ void refreshScreenMain(){
 	// Element 0: Help button
 	if (elementState[0] != lastElementState[0]){
 		if (elementState[3] == ALARM_SOUNDED || elementState[3] == HELP_COMING){
-			if (elementState[0] == UNPRESSED){
+			if (elementState[0] == PRESSED){
 				WriteARectangle(x1[0], x2[0], y1[0], y2[0], DARKRED);
-				WriteARectangle(x1[0]+10, x2[0]-10, y1[0]+10, y2[0]-10, BLACK);
-				drawString("CANCEL", (x1[0]+x2[0])/2, (y1[0]+y2[0])/2, DARKRED, BLACK, FALSE, 0, CONSOLAS_38PT, CENTER, CENTER);
+				WriteARectangle(x1[0]+10, x2[0]-10, y1[0]+10, y2[0]-10, RED);
+				drawString("CANCEL", (x1[0]+x2[0])/2, (y1[0]+y2[0])/2, WHITE, BLACK, FALSE, 0, CONSOLAS_38PT, CENTER, CENTER);
 			}
 			else {
 				WriteARectangle(x1[0], x2[0], y1[0], y2[0], RED);
-				WriteARectangle(x1[0]+10, x2[0]-10, y1[0]+10, y2[0]-10, BLACK);
+				WriteARectangle(x1[0]+10, x2[0]-10, y1[0]+10, y2[0]-10, DARK_SLATE_GRAY);
 				drawString("CANCEL", (x1[0]+x2[0])/2, (y1[0]+y2[0])/2, RED, BLACK, FALSE, 0, CONSOLAS_38PT, CENTER, CENTER);
 			}
 		}
 		else {
-			if (elementState[0] == UNPRESSED){
+			if (elementState[0] == PRESSED){
 				WriteARectangle(x1[0], x2[0], y1[0], y2[0], DARKRED);
-				WriteARectangle(x1[0]+10, x2[0]-10, y1[0]+10, y2[0]-10, BLACK);
-				drawString("HELP", (x1[0]+x2[0])/2, (y1[0]+y2[0])/2, DARKRED, BLACK, FALSE, 0, CONSOLAS_38PT, CENTER, CENTER);
+				WriteARectangle(x1[0]+10, x2[0]-10, y1[0]+10, y2[0]-10, RED);
+				drawString("HELP", (x1[0]+x2[0])/2, (y1[0]+y2[0])/2, WHITE, BLACK, FALSE, 0, CONSOLAS_38PT, CENTER, CENTER);
 			}
 			else {
 				WriteARectangle(x1[0], x2[0], y1[0], y2[0], RED);
-				WriteARectangle(x1[0]+10, x2[0]-10, y1[0]+10, y2[0]-10, BLACK);
+				WriteARectangle(x1[0]+10, x2[0]-10, y1[0]+10, y2[0]-10, DARK_SLATE_GRAY);
 				drawString("HELP", (x1[0]+x2[0])/2, (y1[0]+y2[0])/2, RED, BLACK, FALSE, 0, CONSOLAS_38PT, CENTER, CENTER);
 			}
 		}
 		lastElementState[0] = elementState[0];
 	}
 
-	// Element 1: Pair Bluetooth Button
+	// Element 1: Calibrate Screen button
 	if (elementState[1] != lastElementState[1]){
-		if (elementState[1] == UNPRESSED){
-			if (!acceptingBT){
-				WriteARectangle(x1[1], x2[1], y1[1], y2[1], LIGHT_GRAY);
-				WriteARectangle(x1[1]+10, x2[1]-10, y1[1]+10, y2[1]-10, BLACK);
-				drawString("Allow BT", (x1[1]+x2[1])/2, (y1[1]+y2[1])/2, LIGHT_GRAY, BLACK, FALSE, 0, CONSOLAS_24PT, CENTER, CENTER);
-			}
-			else if(!connected){
-				WriteARectangle(x1[1], x2[1], y1[1], y2[1], LIGHT_GRAY);
-				WriteARectangle(x1[1]+10, x2[1]-10, y1[1]+10, y2[1]-10, BLACK);
-				drawString("Don't allow BT", (x1[1]+x2[1])/2, (y1[1]+y2[1])/2, LIGHT_GRAY, BLACK, FALSE, 0, CONSOLAS_24PT, CENTER, CENTER);
-			}
-			else {
-				WriteARectangle(x1[1], x2[1], y1[1], y2[1], LIGHT_GRAY);
-				WriteARectangle(x1[1]+10, x2[1]-10, y1[1]+10, y2[1]-10, BLACK);
-				drawString("Disconnect BT", (x1[1]+x2[1])/2, (y1[1]+y2[1])/2, LIGHT_GRAY, BLACK, FALSE, 0, CONSOLAS_24PT, CENTER, CENTER);
-			}
+		if (elementState[1] == PRESSED){
+			WriteARectangle(x1[1], x2[1], y1[1], y2[1], WHITE);
+			WriteARectangle(x1[1]+10, x2[1]-10, y1[1]+10, y2[1]-10, BLACK);
+			drawString("Calibrate", (x1[1]+x2[1])/2, (y1[1]+y2[1])/2, WHITE, BLACK, FALSE, 0, CONSOLAS_24PT, CENTER, CENTER);
 		}
 		else{
-			if (!acceptingBT){
-				WriteARectangle(x1[1], x2[1], y1[1], y2[1], WHITE);
-				WriteARectangle(x1[1]+10, x2[1]-10, y1[1]+10, y2[1]-10, BLACK);
-				drawString("Allow BT", (x1[1]+x2[1])/2, (y1[1]+y2[1])/2, WHITE, BLACK, FALSE, 0, CONSOLAS_24PT, CENTER, CENTER);
-			}
-			else if(!connected){
-				WriteARectangle(x1[1], x2[1], y1[1], y2[1], WHITE);
-				WriteARectangle(x1[1]+10, x2[1]-10, y1[1]+10, y2[1]-10, BLACK);
-				drawString("Don't allow BT", (x1[1]+x2[1])/2, (y1[1]+y2[1])/2, WHITE, BLACK, FALSE, 0, CONSOLAS_24PT, CENTER, CENTER);
-			}
-			else {
-				WriteARectangle(x1[1], x2[1], y1[1], y2[1], WHITE);
-				WriteARectangle(x1[1]+10, x2[1]-10, y1[1]+10, y2[1]-10, BLACK);
-				drawString("Disconnect BT", (x1[1]+x2[1])/2, (y1[1]+y2[1])/2, WHITE, BLACK, FALSE, 0, CONSOLAS_24PT, CENTER, CENTER);
-			}
+			WriteARectangle(x1[1], x2[1], y1[1], y2[1], TURQUOISE);
+			WriteARectangle(x1[1]+10, x2[1]-10, y1[1]+10, y2[1]-10, BLACK);
+			drawString("Calibrate", (x1[1]+x2[1])/2, (y1[1]+y2[1])/2, TURQUOISE, BLACK, FALSE, 0, CONSOLAS_24PT, CENTER, CENTER);
 		}
 		lastElementState[1] = elementState[1];
 	}
 
 	// Element 2: Send Message Button
 	if (elementState[2] != lastElementState[2]){
-		if (elementState[2] == UNPRESSED){
-			WriteARectangle(x1[2], x2[2], y1[2], y2[2], LIGHT_GRAY);
-			WriteARectangle(x1[2]+10, x2[2]-10, y1[2]+10, y2[2]-10, BLACK);
-			drawString("Messages", (x1[2]+x2[2])/2, (y1[2]+y2[2])/2, LIGHT_GRAY, BLACK, FALSE, 0, CONSOLAS_24PT, CENTER, CENTER);
-		}
-		else{
+		if (elementState[2] == PRESSED){
 			WriteARectangle(x1[2], x2[2], y1[2], y2[2], WHITE);
 			WriteARectangle(x1[2]+10, x2[2]-10, y1[2]+10, y2[2]-10, BLACK);
 			drawString("Messages", (x1[2]+x2[2])/2, (y1[2]+y2[2])/2, WHITE, BLACK, FALSE, 0, CONSOLAS_24PT, CENTER, CENTER);
+		}
+		else{
+			WriteARectangle(x1[2], x2[2], y1[2], y2[2], TURQUOISE);
+			WriteARectangle(x1[2]+10, x2[2]-10, y1[2]+10, y2[2]-10, BLACK);
+			drawString("Messages", (x1[2]+x2[2])/2, (y1[2]+y2[2])/2, TURQUOISE, BLACK, FALSE, 0, CONSOLAS_24PT, CENTER, CENTER);
 		}
 		if (numNewMessages > 0){
 			DrawAFilledCircle(734, 325, 15, RED);
