@@ -125,7 +125,7 @@ int getcharBlueTimeout(void) {
 void initBlue(void) {
 	Blue_Control = 0x15;
 	Blue_Baud = 0x01;
-	pairDevice();
+	//pairDevice();
 }
 
 void pairDevice(){
@@ -146,4 +146,14 @@ int BlueTestReceiveData(void) {
 	} else {
 		return 1;
 	}
+}
+
+int waitForBTData(int timeout){
+	int startTime = clock();
+	while(!BlueTestReceiveData()){
+		if (startTime + timeout < clock()){
+			return FALSE;
+		}
+	}
+	return TRUE;
 }

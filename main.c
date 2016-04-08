@@ -34,6 +34,8 @@ char pairedDevice[20];
 int upScrollButtonState = UNPRESSED, downScrollButtonState = UNPRESSED;
 int lastUpScrollButtonState = -1, lastDownScrollButtonState = -1;
 char keyboardRetString[100];
+int connected = FALSE;
+int acceptingBT = TRUE;
 
 const int x1[3] = {40, 40, 420};
 const int x2[3] = {760, 390, 760};
@@ -70,7 +72,6 @@ int main() {
 	buttonPressed = -1;
 	int lastScreenTouchTime = INT_MAX - TOUCH_TIMEOUT;
 	TouchEvent event;
-	char retString[100];
 	strcpy(messageLines[0], "1Test message");
 	numMessageLines = 1;
 	char *data = malloc(100);
@@ -85,7 +86,7 @@ int main() {
 			flash = FALSE;
 
 		// always listen for bluetooth data, regardless of current screen
-		if (BlueTestReceiveData()){
+		if (acceptingBT && BlueTestReceiveData()){
 			char *curData = data;
 			char *end;
 			printf("Got bluetooth data.\n");
@@ -94,7 +95,7 @@ int main() {
 			}
 			else{
 				// @ indicates a text message is about to be sent
-				if (data[0] == '@'){
+				if (connected && data[0] == '@'){
 					// send acknowledge that we are ready to receive message
 					sendMessage(";;;;;");
 					// wait to receive message
@@ -126,6 +127,31 @@ int main() {
 						topMessageLine = numMessageLines - 10;
 						lastElementState[2] = -1;
 						sendMessage("}}}}}");
+					}
+				}
+				else if (connected && data[0] == '+'){
+					connected = FALSE;
+					sendMessage("-----");
+					printf("Disconnected!\n");
+				}
+				else if (!connected && data[0] == '?'){
+					strcpy(data, "]]]]]");
+					strcat(data, DEVICE_NAME);
+					strcat(data, "^^^^^");
+					sendMessage(data);
+
+					while(waitForBTData(2000)){
+						int gotMessage = getMessage(data);
+						if (gotMessage && strstr(data, "]") != NULL && strstr(data, "^") != NULL){
+							curData = strrchr(data, ']');
+							curData += 1;
+							end = strchr(curData, '^');
+							end[0] = '\0';
+							strcpy(pairedDevice, curData);
+							connected = TRUE;
+							elementState[3] = CONNECTED;
+							printf("connected!\n");
+						}
 					}
 				}
 			}
@@ -271,8 +297,13 @@ void buttonReleasedMain(){
 			lastElementState[0] = -1;
 			break;
 		case 1:
-			if (elementState[3])
-			elementState[1] = UNPRESSED;
+			if (connected){
+				//disconnect
+			}
+			else{
+				acceptingBT = !acceptingBT;
+			}
+			lastElementState[1] = -1;
 			break;
 		case 2:
 			inMessenger = TRUE;
@@ -290,7 +321,6 @@ void buttonReleasedMain(){
 }
 
 void buttonReleasedMessenger(){
-	char retString[100];
 	switch(buttonPressed) {
 		case 0:
 			inMessenger = FALSE;
@@ -323,6 +353,13 @@ void buttonReleasedMessenger(){
 }
 
 void refreshScreenMain(){
+	if (!acceptingBT){
+		elementState[3] = NOT_ACCEPTING;
+	}
+	else if (!connected){
+		elementState[3] = NOT_CONNECTED;
+	}
+
 	// Element 0: Help button
 	if (elementState[0] != lastElementState[0]){
 		if (elementState[3] == ALARM_SOUNDED || elementState[3] == HELP_COMING){
@@ -355,14 +392,38 @@ void refreshScreenMain(){
 	// Element 1: Pair Bluetooth Button
 	if (elementState[1] != lastElementState[1]){
 		if (elementState[1] == UNPRESSED){
-			WriteARectangle(x1[1], x2[1], y1[1], y2[1], LIGHT_GRAY);
-			WriteARectangle(x1[1]+10, x2[1]-10, y1[1]+10, y2[1]-10, BLACK);
-			drawString("Pair Bluetooth", (x1[1]+x2[1])/2, (y1[1]+y2[1])/2, LIGHT_GRAY, BLACK, FALSE, 0, CONSOLAS_24PT, CENTER, CENTER);
+			if (!acceptingBT){
+				WriteARectangle(x1[1], x2[1], y1[1], y2[1], LIGHT_GRAY);
+				WriteARectangle(x1[1]+10, x2[1]-10, y1[1]+10, y2[1]-10, BLACK);
+				drawString("Allow BT", (x1[1]+x2[1])/2, (y1[1]+y2[1])/2, LIGHT_GRAY, BLACK, FALSE, 0, CONSOLAS_24PT, CENTER, CENTER);
+			}
+			else if(!connected){
+				WriteARectangle(x1[1], x2[1], y1[1], y2[1], LIGHT_GRAY);
+				WriteARectangle(x1[1]+10, x2[1]-10, y1[1]+10, y2[1]-10, BLACK);
+				drawString("Don't allow BT", (x1[1]+x2[1])/2, (y1[1]+y2[1])/2, LIGHT_GRAY, BLACK, FALSE, 0, CONSOLAS_24PT, CENTER, CENTER);
+			}
+			else {
+				WriteARectangle(x1[1], x2[1], y1[1], y2[1], LIGHT_GRAY);
+				WriteARectangle(x1[1]+10, x2[1]-10, y1[1]+10, y2[1]-10, BLACK);
+				drawString("Disconnect BT", (x1[1]+x2[1])/2, (y1[1]+y2[1])/2, LIGHT_GRAY, BLACK, FALSE, 0, CONSOLAS_24PT, CENTER, CENTER);
+			}
 		}
 		else{
-			WriteARectangle(x1[1], x2[1], y1[1], y2[1], WHITE);
-			WriteARectangle(x1[1]+10, x2[1]-10, y1[1]+10, y2[1]-10, BLACK);
-			drawString("Pair Bluetooth", (x1[1]+x2[1])/2, (y1[1]+y2[1])/2, WHITE, BLACK, FALSE, 0, CONSOLAS_24PT, CENTER, CENTER);
+			if (!acceptingBT){
+				WriteARectangle(x1[1], x2[1], y1[1], y2[1], WHITE);
+				WriteARectangle(x1[1]+10, x2[1]-10, y1[1]+10, y2[1]-10, BLACK);
+				drawString("Allow BT", (x1[1]+x2[1])/2, (y1[1]+y2[1])/2, WHITE, BLACK, FALSE, 0, CONSOLAS_24PT, CENTER, CENTER);
+			}
+			else if(!connected){
+				WriteARectangle(x1[1], x2[1], y1[1], y2[1], WHITE);
+				WriteARectangle(x1[1]+10, x2[1]-10, y1[1]+10, y2[1]-10, BLACK);
+				drawString("Don't allow BT", (x1[1]+x2[1])/2, (y1[1]+y2[1])/2, WHITE, BLACK, FALSE, 0, CONSOLAS_24PT, CENTER, CENTER);
+			}
+			else {
+				WriteARectangle(x1[1], x2[1], y1[1], y2[1], WHITE);
+				WriteARectangle(x1[1]+10, x2[1]-10, y1[1]+10, y2[1]-10, BLACK);
+				drawString("Disconnect BT", (x1[1]+x2[1])/2, (y1[1]+y2[1])/2, WHITE, BLACK, FALSE, 0, CONSOLAS_24PT, CENTER, CENTER);
+			}
 		}
 		lastElementState[1] = elementState[1];
 	}
@@ -390,12 +451,16 @@ void refreshScreenMain(){
 
 	// Element 3: Status string
 	if (elementState[3] != lastElementState[3]){
-		WriteARectangle(0, 400, 0, 80, BLACK);
+		WriteARectangle(0, 800, 0, 80, BLACK);
 		if (elementState[3] == NOT_CONNECTED){
-			drawString("Bluetooth device not connected.", 40, 40, RED, BLACK, FALSE, 0, CONSOLAS_16PT, CENTER, LEFT);
+			drawString("Awaiting bluetooth connection.", 40, 40, YELLOW, BLACK, FALSE, 0, CONSOLAS_16PT, CENTER, LEFT);
 		}
 		else if (elementState[3] == CONNECTED){
-			drawString("Bluetooth connected.", 40, 40, GREEN, BLACK, FALSE, 0, CONSOLAS_16PT, CENTER, LEFT);
+			char string[100];
+			strcpy(string, "Connected with ");
+			strcat(string, pairedDevice);
+			strcat(string, ".");
+			drawString(string, 40, 40, GREEN, BLACK, FALSE, 0, CONSOLAS_16PT, CENTER, LEFT);
 		}
 		else if (elementState[3] == ALARM_SOUNDED){
 			DrawWarningSign(40, 40);
@@ -405,9 +470,12 @@ void refreshScreenMain(){
 			// TODO: read in data on how far away they are
 			drawString("Help is on the way!", 40, 40, GREEN, BLACK, FALSE, 0, CONSOLAS_16PT, CENTER, LEFT);
 		}
+		else if (elementState[3] == NOT_ACCEPTING){
+			drawString("Not accepting bluetooth connection.", 40, 40, RED, BLACK, FALSE, 0, CONSOLAS_16PT, CENTER, LEFT);
+		}
 		lastElementState[3] = elementState[3];
 	}
-	else if (flash != lastFlash && elementState[3] == ALARM_SOUNDED){
+	if (flash != lastFlash && elementState[3] == ALARM_SOUNDED){
 		if (flash)
 			DrawWarningSign(40, 40);
 		else

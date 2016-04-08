@@ -6,8 +6,11 @@ typedef enum {
 	NOT_CONNECTED,
 	CONNECTED,
 	ALARM_SOUNDED,
-	HELP_COMING
+	HELP_COMING,
+	NOT_ACCEPTING
 } StringState;
+
+#define DEVICE_NAME "Testname"
 
 #define UNPRESSED 0
 #define PRESSED 1

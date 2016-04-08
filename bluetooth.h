@@ -16,6 +16,7 @@ int putcharBlue(int c);
 void sendMessage(char *message);
 int sendMessageWithAck(char *message, char *indicator, char ack);
 int getMessage(char *retString);
+int waitForBTData(int timeout);
 
 
 #endif /* BLUETOOTH_H_ */
