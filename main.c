@@ -39,6 +39,7 @@ int acceptingBT = TRUE;
 char distanceAway[20] = "";
 char timeAway[20] = "";
 
+// x and y locations of buttons on main screen
 const int x1[3] = {40, 40, 420};
 const int x2[3] = {760, 390, 760};
 const int y1[3] = {80, 300, 300};
@@ -52,6 +53,7 @@ void refreshScreenMain(void);
 void refreshScreenMessenger(void);
 
 int main() {
+	// main initialization of each component
 	ClearScreen();
 	drawString("Initializing SD card...", 20, 40, WHITE, BLACK, FALSE, 0, CONSOLAS_16PT, CENTER, LEFT);
 	initSD();
@@ -84,6 +86,8 @@ int main() {
 	char *data = malloc(100);
 	int lastDistanceTime = 0;
 
+
+	// loop infinitely
 	while(1){
 		currentTime = clock();
 
@@ -114,23 +118,29 @@ int main() {
 					sendMessage(";;;;;");
 					// wait to receive message
 					while(!BlueTestReceiveData()){}
-					// loop until we get a message, sending X's to indicate missing message
+					// loop until we get a message, sending %'s to indicate missing message
 					int gotMessage = getMessage(data);
 					if (!gotMessage || strstr(data, "]") == NULL || strstr(data, "^") == NULL){
 						sendMessage("%%%%%");
 					}
+					// else, we got a valid message
 					else {
+						// update the messagelines array to contain the new string that
+						// was just received
 						curData = strrchr(data, ']');
 						curData += 1;
 						end = strchr(curData, '^');
 						end[0] = '\0';
 
+						// add the name of the person sending the message if it is the first one 
+						// they are sending since you last sent one
 						if (numMessageLines == 0 || messageLines[numMessageLines-1][0] != '1'){
 							strcpy(messageLines[numMessageLines], "1");
 							strcat(messageLines[numMessageLines], pairedDevice);
 							strcat(messageLines[numMessageLines], ":");
 							numMessageLines++;
 						}
+						// divide the message up into 30 character lines
 						while(strlen(curData) > 30){
 							strcpy(messageLines[numMessageLines], "1");
 							strcat(messageLines[numMessageLines], curData);
@@ -142,6 +152,7 @@ int main() {
 						strcat(messageLines[numMessageLines], curData);
 						numMessageLines++;
 						numNewMessages++;
+
 						// update the messaging screen
 						scrollingUpdated = TRUE;
 						topMessageLine = numMessageLines - 10;
@@ -158,11 +169,13 @@ int main() {
 					printf("Disconnected!\n");
 				} // '?' indicates connection requested
 				else if (!connected && data[0] == '?'){
+					// send acknowledgement that we received the message, and send our name
 					strcpy(data, "]]]]]");
 					strcat(data, DEVICE_NAME);
 					strcat(data, "^^^^^");
 					sendMessage(data);
 
+					// wait to receive the other device's name and store it, then we are connected!
 					while(waitForBTData(2000)){
 						int gotMessage = getMessage(data);
 						if (gotMessage && strstr(data, "]") != NULL && strstr(data, "^") != NULL){
@@ -174,6 +187,7 @@ int main() {
 							connected = TRUE;
 							elementState[3] = CONNECTED;
 							printf("connected!\n");
+							break;
 						}
 					}
 				}
@@ -207,9 +221,12 @@ int main() {
 				buttonReleasedMessenger();
 			else {
 				if (buttonReleasedKeyboard(keyboardRetString, &buttonPressed, &lastButtonPressed)){
-					// return key was pressed.
+					// return key was pressed, so we need to process the string typed in the keyboard
 					if (strlen(keyboardRetString) > 0){
+						// send the message that was type using an indicator and acknowledgement
 						sendMessageWithAck(keyboardRetString, "#####", ')');
+						// add the string to our messaging application, just like we do when we
+						// receive a message.
 						if (numMessageLines == 0 || messageLines[numMessageLines-1][0] != '0'){
 							strcpy(messageLines[numMessageLines], "0");
 							strcat(messageLines[numMessageLines], DEVICE_NAME);
@@ -232,6 +249,7 @@ int main() {
 						numMessageLines++;
 						numNewMessages++;
 					}
+					// update all of the UI stuff to redraw the messaging application as we leave the keyboard
 					newMessageButtonState = UNPRESSED;
 					lastBackButtonState = -1;
 					lastNewMessageButtonState = -1;
@@ -255,8 +273,10 @@ int main() {
 	return 0;
 }
 
+// function called when the main screen is touched
 void screenTouchedMain(TouchEvent event){
 
+	// determine which button was pressed
 	int i;
 	for (i = 0; i < 3; i++){
 		if (event.x >= x1[i] && event.x <= x2[i] && event.y >= y1[i] && event.y <= y2[i]){
@@ -266,6 +286,7 @@ void screenTouchedMain(TouchEvent event){
 	buttonPressed = i;
 	if (i == 3)
 		buttonPressed = -1;
+	// set element states of the button that was pressed
 	if (buttonPressed != lastButtonPressed){
 		if (buttonPressed >= 0)
 			elementState[buttonPressed] = PRESSED;
@@ -276,6 +297,7 @@ void screenTouchedMain(TouchEvent event){
 
 }
 
+// function called when the screen is touched in the messenger application
 void screenTouchedMessenger(TouchEvent event){
 	// back button
 	if (event.x < 80 && event.y < 80){
@@ -297,6 +319,7 @@ void screenTouchedMessenger(TouchEvent event){
 	else{
 		buttonPressed = -1;
 	}
+	// set the button states of the pressed buttons
 	if (buttonPressed != lastButtonPressed){
 		if (lastButtonPressed == 0)
 			backButtonState = UNPRESSED;
@@ -311,10 +334,14 @@ void screenTouchedMessenger(TouchEvent event){
 	}
 }
 
+// function called when there is a touch release on the main screen
 void buttonReleasedMain(){
 	switch(buttonPressed) {
+		// case 0 is the help button
 		case 0:
+		// if we're connected, send the help signal
 			if (connected){
+				// if we've already sent an alarm, send the cancel signal
 				if (elementState[3] == ALARM_SOUNDED || elementState[3] == HELP_COMING){
 					sendMessage("<<<<<");
 					while(waitForBTData(1000)){
@@ -326,6 +353,7 @@ void buttonReleasedMain(){
 						}
 					}
 				}
+				// otherwise, send our coordinates, and a special character to indicate we need help
 				else {
 					if (!FAKE_COORDS){
 						get_coor(curLocation);
@@ -337,7 +365,9 @@ void buttonReleasedMain(){
 			elementState[0] = UNPRESSED;
 			lastElementState[0] = -1;
 			break;
+		// case 1 is the calibrate button
 		case 1:
+			// calibrate the screen, then redraw it
 			calibrateScreen();
 			ClearScreen();
 			lastElementState[0] = -1;
@@ -345,8 +375,11 @@ void buttonReleasedMain(){
 			lastElementState[2] = -1;
 			lastElementState[3] = -1;
 			break;
+		// case 2 is the messages button
 		case 2:
+		//	if we're connected, go to the messages screen
 			if (connected){
+				// update the UI stuff to indicate that it should start drawing the messaging application
 				inMessenger = TRUE;
 				lastBackButtonState = -1;
 				lastNewMessageButtonState = -1;
@@ -365,9 +398,11 @@ void buttonReleasedMain(){
 	lastButtonPressed = -1;
 }
 
+// function called when there's a touch release in the messenging application
 void buttonReleasedMessenger(){
 	switch(buttonPressed) {
 		case 0:
+		// back button was pressed, start drawing main screen
 			inMessenger = FALSE;
 			lastElementState[0] = -1;
 			lastElementState[1] = -1;
@@ -377,10 +412,12 @@ void buttonReleasedMessenger(){
 			backButtonState = UNPRESSED;
 			break;
 		case 1:
+		// send message button was pressed, start drawing keyboard
 			inKeyboard = TRUE;
 			initKeyboard(keyboardRetString);
 			break;
 		case 2:
+		// scroll up was pressed, scroll the messages up
 			if (topMessageLine > 0){
 				topMessageLine--;
 				scrollingUpdated = TRUE;
@@ -388,6 +425,7 @@ void buttonReleasedMessenger(){
 			upScrollButtonState = UNPRESSED;
 			break;
 		case 3:
+		// scroll down was pressed, scroll the messages down
 			if (topMessageLine + 10 < numMessageLines){
 				topMessageLine++;
 				scrollingUpdated = TRUE;
@@ -398,6 +436,7 @@ void buttonReleasedMessenger(){
 	lastButtonPressed = -1;
 }
 
+// function called every loop while in the main screen to draw the UI
 void refreshScreenMain(){
 	if (!acceptingBT){
 		elementState[3] = NOT_ACCEPTING;
@@ -506,8 +545,9 @@ void refreshScreenMain(){
 	}
 }
 
-
+// function called every loop while in the messenger to draw the UI
 void refreshScreenMessenger(){
+	// if there was a scroll, redraw the scroll indicator in it's new place
 	if (scrollingUpdated){
 		WriteARectangle(720, 800, 80, 320, BLACK);
 		if (numMessageLines <= 10){
@@ -519,9 +559,11 @@ void refreshScreenMessenger(){
 		scrollingUpdated = FALSE;
 		numNewMessages = 1;
 	}
+	// if there was a new message, clear the old messages so we can redraw them
 	if (numNewMessages > 0){
 		WriteARectangle(80, 720, 0, 400, BLACK);
 		int i;
+		// draw each line starting from the top
 		for (i = 0; i + topMessageLine < numMessageLines && i < 10; i++){
 			if (i + topMessageLine < 0)
 				i = 0 - topMessageLine;
@@ -533,7 +575,7 @@ void refreshScreenMessenger(){
 			}
 		}
 		numNewMessages = 0;
-	}
+	} // draw the back button
 	if (backButtonState != lastBackButtonState){
 		if (backButtonState == PRESSED)
 			DrawHorizontalArrow(10, 80, 10, 80, TURQUOISE);
@@ -541,7 +583,7 @@ void refreshScreenMessenger(){
 			DrawHorizontalArrow(10, 80, 10, 80, BLUE);
 		lastBackButtonState = backButtonState;
 	}
-
+	// draw the send message button
 	if (newMessageButtonState != lastNewMessageButtonState){
 		if (newMessageButtonState == PRESSED){
 			drawButton (0, 800, 400, 480, "Send new message", CONSOLAS_38PT, BLACK, TURQUOISE);
@@ -551,7 +593,7 @@ void refreshScreenMessenger(){
 		}
 		lastNewMessageButtonState = newMessageButtonState;
 	}
-
+	// draw the up scroll button
 	if (upScrollButtonState != lastUpScrollButtonState){
 		if (upScrollButtonState == PRESSED){
 			WriteARectangle(720, 800, 0, 80, LIGHT_GRAY);
@@ -563,7 +605,7 @@ void refreshScreenMessenger(){
 		}
 		lastUpScrollButtonState = upScrollButtonState;
 	}
-
+	// draw the down scroll button
 	if (downScrollButtonState != lastDownScrollButtonState){
 		if (downScrollButtonState == PRESSED){
 			WriteARectangle(720, 800, 320, 400, LIGHT_GRAY);

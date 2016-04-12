@@ -163,6 +163,8 @@ void displayKeyboard(char* field, char* retString){
 	printf("returning string: %s\n", retString);
 }
 
+// --------------------------------------------------- FUNCTIONS USED IF YOU DON'T WANT TO INTERRUPT AN OUTSIDE LOOP --------------------------------
+// initialize the keyboard screen
 void initKeyboard(char *retString){
 	char field[10] = "Message: ";
 	shifted = FALSE;
@@ -178,6 +180,7 @@ void initKeyboard(char *retString){
 	cursorLoc = PADDING + fontWidths[CONSOLAS_16PT]*(strlen(field)+strlen(retString));
 }
 
+// function called in an outside loop when the screen is touched and the keyboard is on screen
 void screenTouchedKeyboard(TouchEvent event, int *buttonPressed, int *lastButtonPressed){
 	int row = (event.y / KEY_HEIGHT) - 1;
 	int column = (event.x / (KEY_WIDTH/2));
@@ -195,6 +198,7 @@ void screenTouchedKeyboard(TouchEvent event, int *buttonPressed, int *lastButton
 	}
 }
 
+// function called in an outside loop when the screen is released and the keyboard in on screen
 int buttonReleasedKeyboard(char *retString, int *buttonPressed, int *lastButtonPressed){
 	*lastButtonPressed = -1;
 	char field[10] = "Message: ";
@@ -275,6 +279,7 @@ int buttonReleasedKeyboard(char *retString, int *buttonPressed, int *lastButtonP
 	return FALSE;
 }
 
+// function called in an outside loop every loop, to update the blinking cursor
 void refreshScreenKeyboard(int currentTime){
 	// blink the cursor on and off
 	if (currentTime % 1000 > 500 && !cursorOn){

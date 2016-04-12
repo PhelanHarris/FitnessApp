@@ -4,64 +4,31 @@
 #include <string.h>
 #include <stdio.h>
 
-void getData(void) {
-	int write_flag = 0;
-	int i;
-	while (1) {
-
-		if (write_flag == 0) {
-			while (BlueTestReceiveData() != 1) {
-			}
-			char testing[1000];
-			char now;
-			for (i = 0; i < 1000; i++) {
-				now = getcharBlue();
-				if (now == '\r') {
-					break;
-				} else {
-					testing[i] = now;
-				}
-			}
-			testing[i] = '\0';
-			printf("this is the string received %s \n", testing);
-			if (strcmp(testing, "hello") == 0) {
-				write_flag = 1;
-			}
-			write_flag = 1;
-		}
-		if (write_flag == 1) {
-			printf("now writing\n");
-			char to_send[] = "message";
-			char copy_send[strlen(to_send)];
-			for (i = 0; i < strlen(to_send); i++) {
-				copy_send[i] = putcharBlue(to_send[i]);
-			}
-			printf("this is the copy %s \n", to_send);
-			printf("finished");
-			write_flag = 0;
-		}
-	}
-}
-
+// method for reading in a string from the bluetooth dongle
 int getMessage(char *retString) {
 	int cur;
 	int i;
 	for (i = 0; i < 1000; i++) {
 		cur = getcharBlueTimeout();
+		// if the read timed out, return false
 		if (cur == -1) {
 			return FALSE;
+		// if the character is a '\r', we're at the end of a message
 		} else if (cur == '\r') {
+			// read one more character to get rid of the '\n'
 			cur = getcharBlueTimeout();
 			break;
 		} else {
 			retString[i] = cur;
 		}
 	}
+	// null terminate the string
 	retString[i] = '\0';
 	printf("This is the string received: %s \n", retString);
 	return TRUE;
 }
 
+// method to send a string over bluetooth
 void sendMessage(char *message) {
 	printf("Sending string over bluetooth: %s\n", message);
 	int i;
@@ -71,7 +38,7 @@ void sendMessage(char *message) {
 	putcharBlue('\r');
 }
 
-
+// method to send a string over bluetooth, using an initial indicator and acknowledge
 int sendMessageWithAck(char *message, char *indicator, char ack) {
 	// send '^' character to indicate we want to send a message
 	sendMessage(indicator);
@@ -80,6 +47,7 @@ int sendMessageWithAck(char *message, char *indicator, char ack) {
 	char retString[8] = "";
 	int initialTime = clock();
 	int currentTime = initialTime;
+	// loop until we receive the acknoledgement
 	while(retString[0] != ack && currentTime < initialTime + BLUETOOTH_TIMEOUT){
 		getMessage(retString);
 		currentTime = clock();
@@ -99,12 +67,14 @@ int sendMessageWithAck(char *message, char *indicator, char ack) {
 	return FALSE;
 }
 
+// send a single character over bluetooth
 int putcharBlue(int c) {
 	while ((Blue_Status & 0x02) != 0x02) {
 	}
 	Blue_TxData = c;
 	return c;
 }
+// receive a single character over bluetooth
 int getcharBlue(void) {
 	while ((Blue_Status & 0x01) != 0x01) {
 	}
@@ -112,6 +82,8 @@ int getcharBlue(void) {
 	return now;
 
 }
+// receive a single character over bluetooth, but return -1 after a timeout
+// if there isn't one.
 int getcharBlueTimeout(void) {
 	int startTime = clock();
 	while ((Blue_Status & 0x01) != 0x01) {
@@ -122,12 +94,14 @@ int getcharBlueTimeout(void) {
 	return now;
 
 }
+// initialize the bluetooth device
 void initBlue(void) {
 	Blue_Control = 0x15;
 	Blue_Baud = 0x01;
 	//pairDevice();
 }
 
+// function to send/receive a simple message, to know that we are paired
 void pairDevice(){
 	char retString[8] = "";
 	while(TRUE){
@@ -140,6 +114,7 @@ void pairDevice(){
 	sendMessage("*****");
 }
 
+// function to test if there is any data to read in
 int BlueTestReceiveData(void) {
 	if ((Blue_Status & 0x01) != 0x01) {
 		return 0;
@@ -148,6 +123,7 @@ int BlueTestReceiveData(void) {
 	}
 }
 
+// function to loop, waiting for data to be available (until it reaches a timeout)
 int waitForBTData(int timeout){
 	int startTime = clock();
 	while(!BlueTestReceiveData()){
